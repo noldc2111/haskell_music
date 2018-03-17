@@ -1,133 +1,73 @@
---Casey Nold
--- nold@pdx.edu
-module HW5 where
+mdule Track where
+import Music
 
-import Data.List
-import Test.HUnit(Test(TestCase,TestList),assertEqual,runTestTT)
-import Test.QuickCheck
-import Test.QuickCheck.Test(isSuccess)
-
--- inductive proofs
--- Prove --> map f x ++ map f y == map f( x++y)
--- Rules: 1) map f [] = []  
---        2) map f(x:xs) = f(x):(map f xs)
---        3) [] ++ [] == []
--- Base Case: map f x ++ map f y == map f(x++y)
--- A0: map f [] ++ map f [] == map f ([] ++[])
---     [] ++ [] == map f ([])   **by rule 1
---        []    ==  []          ** by rule 1 and rule 3
+-- This is a simple program that plays a acoustic guitar chord picking that I wrote
 --
---An:   map f x ++ map f y == map f (x++y)
---An+1: map f(x:xs) ++ map f(y:ys) == map f (x:xs ++ y:ys)
---      f(x):map(xs) ++ f(y):map(ys) == map f( x:xs ++ y:ys)          ** by rule 2
---      f(x):map(xs) ++ f(y):map(ys) ==  f(x):map(xs) ++ f(y):map(ys) ** by applying map
---      map f(x:xs) ++ map f(y:ys) == map f(x:xs) ++ map f(y:ys)      ** by rule 2 backwards & IH
---      
---A ⊥ : map f(⊥) ++ mapf(⊥)  ==  map f(⊥ ++ ⊥)
---        ⊥ ++ ⊥     ==   map f(⊥)          ** by map being strict on its list & append being left strict
---               ⊥   == ⊥                 ** by map being strict on its list & append being left strict
---                      QED
--- *****************************************************************************
--- Prove --> length(zip xs ys) == length(min xs ys)
--- Rules: 1) zip [] [] = []     2) min [] [] = []
---        3) length [] = 0      4) zip(x:xs y:ys) = (x,y):zip(xs ys)
---        5) min x:xs y:ys == 1 + min xs ys
---        6) length(x:xs y:ys) = 1+ length(xs ys)
---        7) length(min xs ys) = length xs `min` length ys
--- A0:  length(zip[] [])  == length(min [][])
---      length(zip [] []) == length []         ** by rule 2
---             length []  == length []         ** by rule 1
---                    0   ==  0                ** by rule 3
 
---An:       length(zip xs ys)  == length(min xs ys)
---An+1  length(zip x:xs y:ys)  == length(min x:xs y:ys)
---      length((x,y)zip(xs,ys) == length(min x:xs y:ys)                ** by rule 4  
---      1+ length(zip xs ys)   == length x:xs `min` length y:ys        ** by rule 7
---      1+ length(zip xs ys)   == 1 + length xs `min` 1 + length ys    ** by rule 6
---      1+ length(zip xs ys)   == 1+ length( min xs ys)                ** by IH
---
---A ⊥:  length(zip(⊥ ⊥))       == length(min ⊥ ⊥)                      ** by zip & min being strict 
---      length(⊥)              == length(⊥)                            ** by length being strict
---               ⊥             ==    ⊥
---                        QED
---quickCheck test--> results at the end of file.
-zipLen :: [Int] -> [Int] -> Int
-zipLen xs ys =  length(zip xs ys)
+main = writeMidi track "song"
 
-lenMin :: [Int] ->[Int] -> Int
-lenMin xs ys =  length(min xs ys)
-prop_lz xs ys = length (zip xs ys) == length(min xs ys)
+-- cDelay is a helper function to delay a 'c' note by some specified amount
+cDelay x = delay x (c 5 en [])
 
-{- *************************************************** -}
-data Bit = O | I  deriving (Eq,Show, Ord)
+-- noteRepeat will repeat a note, or a group of notes by some specified amount n
+noteRepeat n notes = line (take n (repeat notes))
 
-type BinNum = [Bit]
+-- the four definitions that follow make up a general finger picking pattern of a c chord ,am chord,
+-- f chord and a g chord's notes. The c, am, and g chords each contain a call to the cDelay function which
+-- enables a qn delay on the c note. This gives the impression of letting the "bass" note ring. 
+ 
+cNotes  = line[ c 4 qn []] :=: cDelay qn :+: line[g 5 en[]] :+: 
+               line[e 4 qn []] :=: cDelay qn :+: line[g 5 en[]]
 
-toBinNum  :: Integer -> BinNum
-toBinNum n | n == 0 = []
-           | n `mod` 2 == 1 = I :toBinNum(halfOfN)
-           | n `mod` 2 == 0 = O :toBinNum(halfOfN)
-             where halfOfN = n `div` 2
+amNotes = line[ a 4 qn []] :=: cDelay qn :+: line[ a 5 en[]] :+: 
+               line[d 4 qn []] :=: cDelay qn :+: line[a 5 en[]]
 
-inc :: BinNum -> BinNum
-inc []      = [I]
-inc [I]     = O:[I]
-inc [O]     = I:[O]
-inc (O:ds)  = [I] ++ ds
-inc (I:ds)  = O : inc ds
+fNotes    = line[ f 4 den[], cDelay sn, a 5 en[], 
+                 f 4 den [], cDelay sn, a 5 en[]]
 
-add :: BinNum -> BinNum -> BinNum
-add []     ds     =  [] ++ ds
-add ds     []     =  ds ++ [] 
-add (O:ds) (e:es) = O : add ds es
-add (I:ds) (O:es) = I : add ds es
-add (I:ds) (I:es) = O : inc(add (ds) (es)) 
+gBass     = line[ d 4 qn [], b 4 qn[], g 4 qn[]]
+gRhythm   = line[ b 4 en [], g 4 en[]]
+gPart     = chord[ gBass :=: gRhythm]
 
--- new algorithm for adding binary numbers
-add2 :: BinNum ->BinNum -> BinNum
-add2 (x:xs) (y:ys) | (x:xs) == []     && (y:ys) /= [] = y: add2 [] ys 
-                   | (x:xs) /= []     && (y:ys) == [] = x: add2 xs []
-                   | (x:xs) == []     && (y:ys) == [] =    add2 [] []
-                   | x:xs == (O:xs) && y:ys == (O:ys) = O: add xs ys
-                   | x:xs == (I:xs) && y:ys == (O:ys) = I: add xs ys
-                   | x:xs == (O:xs) && y:ys == (I:ys) = I: add xs ys
-                   | x:xs == (I:xs) && y:ys == (I:ys) = O: inc(add(xs)(ys))
+-- Below are 8 function definitions for chords c, am, f, g, d, d suspended
+-- c over d (covD), d plus one(dPO). These chords were created so I could manipulate
+--  their octave as well as their duration. 
+cMaJ = [ n 4 en [] | n<-[c,e,g]]
+aMin = [ n 4 qn [] | n<-[a,c,e]]
+fMaj = [ n 4 qn [] | n<-[c,f,e]]
+gMaj = [ n 4 en [] | n<-[g,b,d]]
+dMaj = [ n 4 en [] | n<-[d,fs,a]]
+dSus = [ n 4 en [] | n<-[d,e,a]]
+covD = [ n 4 sn [] | n<-[e,g,d]] 
+dPO  = [ n 4 en [] | n<-[d,g,a]]
+
+-- picking describes how the notes of the c, am , f and g should be played. They are played in sequence and repeated,
+--  using the noteRepeat function, twice.
+picking = chord[ ( noteRepeat 2  cNotes :+: noteRepeat 2 amNotes) :+: (noteRepeat 2 fNotes) :+: (noteRepeat 2 gPart)]
+
+-- tune augments the tempo of the pciking pattern to a 3/1 time and is also responsible for playing the picking pattern twice. 
+-- following the picking, the time in set to 4/4 and four chords are played. 
+tune = (Tempo(3%1) ((noteRepeat 2 picking))) :+: Tempo (4%4) (line[ chord cMaJ, (noteRepeat 2 (chord gMaj)), chord cMaJ])
+
+-- chordie is an introduction set of chords played prior to the picking pattern. 
+chordie = line [chord dMaj, chord cMaJ, chord dMaj, (noteRepeat 2 (chord dSus)),chord dMaj, chord covD, (noteRepeat 2 (chord dPO)), chord dMaj, chord gMaj, chord cMaj]
+
+-- setting the instrument and playing the two parts of the song.
+track = Instr "Acoustic Guitar" (chordie :+: tune) 
+
+shorter :: Music -> Dur -> Bool
+shorter m n 
+          | dur' m > n = False
+          | dur' m <= n = True
+
+dur' :: Music -> Dur
+dur' (Note _ d a) = d
+dur' (Rest d) = d
+dur' (m1 :+: m2) = dur' m1 + dur' m2
+dur' (m1 :=: m2) = dur' m1 `max` dur' m2
+dur' (Tempo a m) = dur' m / a
+dur' (Trans _ m) = dur' m
+dur' (Instr _ m) = dur' m
 
 
--- Testing for the add & add2 functions
-testOne   = assertEqual "empty plus bin 1"     (add [I,O] [I,O]) [O,I,O]
-testTwo   = assertEqual "bin 3 plus bin 1"     (add [I,I] [I,O]) [O,O,I]
-testThree = assertEqual "bin 6 plus bin 6"     (add [O,I,I] [O,I,I]) [O,O,I,I]
-testFour  = assertEqual "bin 10 plus bin 2"    (add [O,I,O,I][O,I]) [O,O,I,I]
-testFive  = assertEqual "zero plus zero"       (add [O] [O]) [O]
-testSix   = assertEqual "bin 7 plus bin 2"     (add [I,I,I] [O,I,O]) [I,O,O,I]
-testSeven = assertEqual "bin 8 plus bin 10"    (add [O,O,O,I][O,I,O,I]) [O,O,O,O,I]
-testEight = assertEqual "bin 16 plus bin 1024" (add [O,O,O,O,I][O,O,O,O,O,O,O,O,O,O,I]) [ O,O,O,O,I,O,O,O,O,O,I]
-testNine  = assertEqual "bin 24 plus bin 48"   (add [O,O,O,I,I] [O,O,O,O,I,I]) [O,O,O,I,O,O,I]
-testTen   = assertEqual "bin 256 plus 512"     (add [O,O,O,O,O,O,O,O,I] [O,O,O,O,O,O,O,O,O,I]) [O,O,O,O,O,O,O,O,I,I]
-tests_add = TestList[ TestCase testOne, TestCase testTwo, TestCase testThree,TestCase testFour, TestCase testFive, 
-                  TestCase testSix, TestCase testSeven, TestCase testEight, TestCase testNine,TestCase testTen]
 
--- add2 tests
-testOne2   = assertEqual "bin 1 plus bin 1"     (add2 [I,O] [I,O]) [O,I,O]
-testTwo2   = assertEqual "bin 3 plus bin 1"     (add2 [I,I] [I,O]) [O,O,I]
-testThree2 = assertEqual "bin 6 plus bin 6"     (add2 [O,I,I] [O,I,I]) [O,O,I,I]
-testFour2  = assertEqual "bin 10 plus bin 2"    (add2 [O,I,O,I][O,I]) [O,O,I,I]
-testFive2  = assertEqual "zero plus zero"       (add2 [O] [O]) [O]
-testSix2   = assertEqual "bin 7 plus bin 2"     (add2 [I,I,I] [O,I,O]) [I,O,O,I]
-testSeven2 = assertEqual "bin 8 plus bin 10"    (add2 [O,O,O,I][O,I,O,I]) [O,O,O,O,I]
-testEight2 = assertEqual "bin 16 plus bin 1024" (add2 [O,O,O,O,I][O,O,O,O,O,O,O,O,O,O,I]) [ O,O,O,O,I,O,O,O,O,O,I]
-testNine2  = assertEqual "bin 24 plus bin 48"   (add2 [O,O,O,I,I] [O,O,O,O,I,I]) [O,O,O,I,O,O,I]
-testTen2   = assertEqual "bin 256 plus 512"     (add2 [O,O,O,O,O,O,O,O,I] [O,O,O,O,O,O,O,O,O,I]) [O,O,O,O,O,O,O,O,I,I]
-tests_add2 = TestList[ TestCase testOne2, TestCase testTwo2, TestCase testThree2, TestCase testFour2, TestCase testFive2, 
-                  TestCase testSix2, TestCase testSeven2, TestCase testEight2, TestCase testNine2,TestCase testTen2]
-
--- main that runs the tests
-main = runTestTT (TestList[tests_add, tests_add2]) 
-{- *** below is the prelude output from the tests
- - *HW5> main
- - Cases: 20  Tried: 20  Errors: 0  Failures: 0
- - Counts {cases = 20, tried = 20, errors = 0, failures = 0}
- -*HW5> quickCheck prop_lz 
- +++ OK, passed 100 tests.
- -}
